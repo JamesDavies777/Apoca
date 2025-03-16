@@ -229,45 +229,112 @@ def show_controls():
                 control_schemes[selected[0]][selected[1]] = event.key
                 selected = None
 
-def game_settings_menu():
+def game_parameters_menu():
     global game_settings
-    settings = game_settings.copy()
+    settings = game_settings.copy()  # Work with a copy to modify settings
+    scroll_offset = 0
+    option_height = 60  # Height of each option
+    visible_height = SCREEN_HEIGHT - 200  # Space for title and back button
+    max_offset = max(0, len(settings) * option_height - visible_height)  # Max scrollable distance
+
+    while True:
+        # Draw background and title
+        draw_gradient_background(screen, RED, PURPLE)
+        draw_title(screen, "Game Parameters", SCREEN_WIDTH // 2 - 150, 50)
+        mouse_pos = pygame.mouse.get_pos()
+
+        # Render visible options with adjustment controls
+        y = 150 - scroll_offset
+        rects = []
+        for key in settings.keys():  # Iterate over keys to avoid duplicates
+            if 100 <= y <= SCREEN_HEIGHT - 100:  # Only render if in visible area
+                text = f"{key.replace('_', ' ').title()}: {settings[key]}{' (Easy/Med/Hard)' if key == 'ai_difficulty' else ''}"
+                label = small_font.render(text, True, WHITE)
+                screen.blit(label, (SCREEN_WIDTH // 2 - 250, y))
+                minus_rect = pygame.Rect(SCREEN_WIDTH // 2 + 150, y, 30, 30)
+                plus_rect = pygame.Rect(SCREEN_WIDTH // 2 + 190, y, 30, 30)
+                pygame.draw.rect(screen, BUTTON_COLOR, minus_rect)
+                pygame.draw.rect(screen, BUTTON_COLOR, plus_rect)
+                screen.blit(small_font.render("-", True, WHITE), minus_rect.move(10, 5))
+                screen.blit(small_font.render("+", True, WHITE), plus_rect.move(10, 5))
+                rects.append((minus_rect, key, -1 if key == "ai_difficulty" else -0.5 if key == "action_cooldown" else -5 if key == "player_size" else -1))
+                rects.append((plus_rect, key, 1 if key == "ai_difficulty" else 0.5 if key == "action_cooldown" else 5 if key == "player_size" else 1))
+            y += option_height
+
+        # Draw scrollbar if content exceeds visible area
+        if max_offset > 0:
+            scrollbar_height = visible_height * visible_height // (len(settings) * option_height)
+            scrollbar_y = 100 + (scroll_offset / max_offset) * (visible_height - scrollbar_height)
+            pygame.draw.rect(screen, GRAY, (SCREEN_WIDTH - 20, scrollbar_y, 10, scrollbar_height))
+
+        # Draw back button
+        draw_button(screen, "Back", SCREEN_WIDTH // 2 - 150, SCREEN_HEIGHT - 100, 300, 60,
+                    hovered=(SCREEN_WIDTH // 2 - 150 <= mouse_pos[0] <= SCREEN_WIDTH // 2 + 150 and
+                             SCREEN_HEIGHT - 100 <= mouse_pos[1] <= SCREEN_HEIGHT - 40))
+        pygame.display.flip()
+
+        # Handle events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                # Save settings on exit
+                game_settings.clear()
+                game_settings.update(settings)
+                try:
+                    with open(SETTINGS_FILE, "w") as f:
+                        json.dump(game_settings, f)
+                    print("Settings saved successfully.")
+                except IOError as e:
+                    print(f"Error saving settings: {e}")
+                return
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:  # Left click
+                    for rect, key, delta in rects:
+                        if rect.collidepoint(event.pos):
+                            min_val = 1 if key in ["survivor_speed", "infected_speed", "bullet_speed", "ai_difficulty"] else 0 if key == "action_cooldown" else 10
+                            max_val = 3 if key == "ai_difficulty" else 2 if key == "action_cooldown" else 200 if key == "player_size" else 20
+                            settings[key] = max(min_val, min(max_val, settings[key] + delta))
+                    if SCREEN_WIDTH // 2 - 150 <= event.pos[0] <= SCREEN_WIDTH // 2 + 150 and SCREEN_HEIGHT - 100 <= event.pos[1] <= SCREEN_HEIGHT - 40:
+                        # Save settings when pressing "Back"
+                        game_settings.clear()
+                        game_settings.update(settings)
+                        try:
+                            with open(SETTINGS_FILE, "w") as f:
+                                json.dump(game_settings, f)
+                            print("Settings saved successfully.")
+                        except IOError as e:
+                            print(f"Error saving settings: {e}")
+                        return
+                elif event.button == 4:  # Scroll up
+                    scroll_offset = max(0, scroll_offset - 20)
+                elif event.button == 5:  # Scroll down
+                    scroll_offset = min(max_offset, scroll_offset + 20)
+
+def settings_menu():
     while True:
         draw_gradient_background(screen, RED, PURPLE)
-        draw_title(screen, "Game Settings", SCREEN_WIDTH // 2 - 150, 50)
+        title_text = "Settings"
+        title = font.render(title_text, True, WHITE)
+        draw_title(screen, title_text, SCREEN_WIDTH // 2 - title.get_width() // 2, 50)
         mouse_pos = pygame.mouse.get_pos()
-        y = 150
-        rects = []
-        for key in settings:
-            text = f"{key.replace('_', ' ').title()}: {settings[key]}{' (Easy/Med/Hard)' if key == 'ai_difficulty' else ''}"
-            label = small_font.render(text, True, WHITE)
-            screen.blit(label, (SCREEN_WIDTH // 2 - 150, y))
-            minus_rect = pygame.Rect(SCREEN_WIDTH // 2 + 50, y, 30, 30)
-            plus_rect = pygame.Rect(SCREEN_WIDTH // 2 + 90, y, 30, 30)
-            pygame.draw.rect(screen, BUTTON_COLOR, minus_rect)
-            pygame.draw.rect(screen, BUTTON_COLOR, plus_rect)
-            screen.blit(small_font.render("-", True, WHITE), minus_rect.move(10, 5))
-            screen.blit(small_font.render("+", True, WHITE), plus_rect.move(10, 5))
-            rects.append((minus_rect, key, -1 if key == "ai_difficulty" else -0.5 if key == "action_cooldown" else -5 if key == "player_size" else -1))
-            rects.append((plus_rect, key, 1 if key == "ai_difficulty" else 0.5 if key == "action_cooldown" else 5 if key == "player_size" else 1))
-            y += 60
-        draw_button(screen, "Save", SCREEN_WIDTH // 2 - 150, y, 300, 60, hovered=(SCREEN_WIDTH // 2 - 150 <= mouse_pos[0] <= SCREEN_WIDTH // 2 + 150 and y <= mouse_pos[1] <= y + 60))
+        buttons = [
+            ("Game Parameters", 250, game_parameters_menu),
+            ("Controls", 350, show_controls),
+            ("Back", 450, None),
+        ]
+        for i, (text, y, action) in enumerate(buttons):
+            draw_button(screen, text, SCREEN_WIDTH // 2 - 150, y, 300, 60, hovered=(SCREEN_WIDTH // 2 - 150 <= mouse_pos[0] <= SCREEN_WIDTH // 2 + 150 and y <= mouse_pos[1] <= y + 60), border_color=SURVIVOR_COLORS[i % len(SURVIVOR_COLORS)])
         pygame.display.flip()
         for event in pygame.event.get():
             if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
                 return
             if event.type == pygame.MOUSEBUTTONDOWN:
-                x, y_pos = event.pos
-                for rect, key, delta in rects:
-                    if rect.collidepoint(x, y_pos):
-                        min_val = 1 if key in ["survivor_speed", "infected_speed", "bullet_speed", "ai_difficulty"] else 0.5 if key == "action_cooldown" else 10
-                        max_val = 3 if key == "ai_difficulty" else 2 if key == "action_cooldown" else 50 if key == "player_size" else 20
-                        settings[key] = max(min_val, min(max_val, settings[key] + delta))
-                if SCREEN_WIDTH // 2 - 150 <= x <= SCREEN_WIDTH // 2 + 150 and y <= y_pos <= y + 60:
-                    game_settings = settings
-                    with open(SETTINGS_FILE, "w") as f:
-                        json.dump(game_settings, f)
-                    return
+                x, y = event.pos
+                for text, btn_y, action in buttons:
+                    if SCREEN_WIDTH // 2 - 150 <= x <= SCREEN_WIDTH // 2 + 150 and btn_y <= y <= btn_y + 60:
+                        if text == "Back":
+                            return
+                        if action:
+                            action()
 
 def skin_customization_menu():
     global player_skins
@@ -295,7 +362,7 @@ def skin_customization_menu():
                 skins[selected] = (max(0, r - delta[0]), max(0, g - delta[1]), max(0, b - delta[2]))
             if plus_rect.collidepoint(mouse_pos) and pygame.mouse.get_pressed()[0]:
                 skins[selected] = (min(255, r + delta[0]), min(255, g + delta[1]), min(255, b + delta[2]))
-        draw_button(screen, "Save", SCREEN_WIDTH // 2 - 150, y, 300, 60, hovered=(SCREEN_WIDTH // 2 - 150 <= mouse_pos[0] <= SCREEN_WIDTH // 2 + 150 and y <= mouse_pos[1] <= y + 60))
+        draw_button(screen, "Back", SCREEN_WIDTH // 2 - 150, y, 300, 60, hovered=(SCREEN_WIDTH // 2 - 150 <= mouse_pos[0] <= SCREEN_WIDTH // 2 + 150 and y <= mouse_pos[1] <= y + 60))
         pygame.display.flip()
         for event in pygame.event.get():
             if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
@@ -339,11 +406,13 @@ def pause_menu():
 def main_menu():
     while True:
         draw_gradient_background(screen, RED, PURPLE)
-        draw_title(screen, "Apoca", SCREEN_WIDTH // 2 - 100, 100)
+        title_text = "Apoca"
+        title = font.render(title_text, True, WHITE)
+        draw_title(screen, title_text, SCREEN_WIDTH // 2 - title.get_width() // 2, 100)
         mouse_pos = pygame.mouse.get_pos()
         buttons = [
             ("Play", 250, player_menu),
-            ("Settings", 350, show_controls),
+            ("Settings", 350, settings_menu),
             ("Exit", 450, lambda: pygame.quit() or sys.exit()),
         ]
         for i, (text, y, action) in enumerate(buttons):
@@ -366,8 +435,7 @@ def player_menu():
         mouse_pos = pygame.mouse.get_pos()
         buttons = [
             ("Local Play", 250, player_selection_menu),
-            ("Settings", 350, game_settings_menu),
-            ("Skins", 450, skin_customization_menu),
+            ("Skins", 350, skin_customization_menu),
         ]
         for i, (text, y, action) in enumerate(buttons):
             draw_button(screen, text, SCREEN_WIDTH // 2 - 150, y, 300, 60, hovered=(SCREEN_WIDTH // 2 - 150 <= mouse_pos[0] <= SCREEN_WIDTH // 2 + 150 and y <= mouse_pos[1] <= y + 60), border_color=SURVIVOR_COLORS[i % len(SURVIVOR_COLORS)])
@@ -480,6 +548,18 @@ def game_world(num_players, timer_duration, max_ammo, include_ai):
         speed = game_settings["infected_speed"] if char["type"] == "infected" else game_settings["survivor_speed"]
         accuracy = 0.5 + (game_settings["ai_difficulty"] - 1) * 0.25
 
+        def adjust_direction(dx, dy, pos):
+            rect = pygame.Rect(pos[0] + dx - game_settings["player_size"], pos[1] + dy - game_settings["player_size"], game_settings["player_size"] * 2, game_settings["player_size"] * 2)
+            if any(rect.colliderect(b) for b in buildings):
+                if not any(pygame.Rect(pos[0] + dx - game_settings["player_size"], pos[1] - game_settings["player_size"], game_settings["player_size"] * 2, game_settings["player_size"] * 2).colliderect(b) for b in buildings):
+                    return dx, 0
+                elif not any(pygame.Rect(pos[0] - game_settings["player_size"], pos[1] + dy - game_settings["player_size"], game_settings["player_size"] * 2, game_settings["player_size"] * 2).colliderect(b) for b in buildings):
+                    return 0, dy
+                else:
+                    jitter = random.uniform(-speed * 0.5, speed * 0.5)
+                    return jitter, jitter if random.choice([True, False]) else -jitter
+            return dx, dy
+
         if char["type"] == "infected":
             target = min(
                 (p for p in players if p["character"]["type"] == "survivor" and p["character"]["respawn_timer"] == 0),
@@ -488,14 +568,14 @@ def game_world(num_players, timer_duration, max_ammo, include_ai):
             if target:
                 dx = target["character"]["pos"][0] - char["pos"][0]
                 dy = target["character"]["pos"][1] - char["pos"][1]
-                dist = max(1, math.hypot(dx, dy))  # Avoid division by zero
+                dist = max(1, math.hypot(dx, dy))
                 dx, dy = dx / dist * speed, dy / dist * speed
+                dx, dy = adjust_direction(dx, dy, char["pos"])
                 new_pos = [char["pos"][0] + dx, char["pos"][1] + dy]
-                rect = pygame.Rect(new_pos[0] - game_settings["player_size"], new_pos[1] - game_settings["player_size"], game_settings["player_size"] * 2, game_settings["player_size"] * 2)
-                if not any(rect.colliderect(b) for b in buildings) and PLAYABLE_LEFT <= new_pos[0] <= PLAYABLE_RIGHT and PLAYABLE_TOP <= new_pos[1] <= PLAYABLE_BOTTOM:
+                if PLAYABLE_LEFT <= new_pos[0] <= PLAYABLE_RIGHT and PLAYABLE_TOP <= new_pos[1] <= PLAYABLE_BOTTOM:
                     char["pos"] = new_pos
                 char["last_dx"], char["last_dy"] = dx, dy
-                if dist < INFECTED_ATTACK_RADIUS + game_settings["player_size"] and char["attack_cooldown"] == 0 and random.random() < accuracy:
+                if dist < INFECTED_ATTACK_RADIUS + game_settings["player_size"] and char["attack_cooldown"] <= action_cooldown_frames // 2 and random.random() < accuracy:
                     char["attack_cooldown"] = action_cooldown_frames
 
         else:  # Survivor AI
@@ -516,9 +596,9 @@ def game_world(num_players, timer_duration, max_ammo, include_ai):
                     char["ammo"] -= 1
                 elif dist < 300:
                     dx, dy = -dx / dist * speed, -dy / dist * speed
+                    dx, dy = adjust_direction(dx, dy, char["pos"])
                     new_pos = [char["pos"][0] + dx, char["pos"][1] + dy]
-                    rect = pygame.Rect(new_pos[0] - game_settings["player_size"], new_pos[1] - game_settings["player_size"], game_settings["player_size"] * 2, game_settings["player_size"] * 2)
-                    if not any(rect.colliderect(b) for b in buildings) and PLAYABLE_LEFT <= new_pos[0] <= PLAYABLE_RIGHT and PLAYABLE_TOP <= new_pos[1] <= PLAYABLE_BOTTOM:
+                    if PLAYABLE_LEFT <= new_pos[0] <= PLAYABLE_RIGHT and PLAYABLE_TOP <= new_pos[1] <= PLAYABLE_BOTTOM:
                         char["pos"] = new_pos
                     char["last_dx"], char["last_dy"] = dx, dy
 
@@ -586,7 +666,7 @@ def game_world(num_players, timer_duration, max_ammo, include_ai):
                 name_text = name_font.render(char["name"], True, WHITE)
                 screen.blit(name_text, (char["pos"][0] - name_text.get_width() // 2, char["pos"][1] - pulsed_size - 20))
             if char["type"] == "infected" and char["attack_cooldown"] == 0:
-                if (not char["is_ai"] and player["control"] and keys[player["control"]["action"]]) or (char["is_ai"] and char["attack_cooldown"] == 0):
+                if (not char["is_ai"] and player["control"] and keys[player["control"]["action"]]) or (char["is_ai"]):
                     screen.blit(radius_surface, (char["pos"][0] - INFECTED_ATTACK_RADIUS, char["pos"][1] - INFECTED_ATTACK_RADIUS))
                     for other in players:
                         if other["character"]["type"] == "survivor" and other["character"]["respawn_timer"] == 0:
@@ -640,3 +720,4 @@ def game_world(num_players, timer_duration, max_ammo, include_ai):
 
 if __name__ == "__main__":
     main_menu()
+
